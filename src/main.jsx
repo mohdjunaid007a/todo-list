@@ -1,28 +1,61 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
+
+const API = "https://todo-list-backend-yf30.onrender.com";
 
 function TodoApp() {
   const [task, setTask] = useState("");
   const [todos, setTodos] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Add Todo
-  const addTodo = () => {
-    if (task.trim() === "") return;
-    setTodos([...todos, { text: task, completed: false }]);
-    setTask("");
+  // Load todos from MongoDB when page loads
+  useEffect(() => {
+    fetch(fetch("https://todo-list-backend-yf30.onrender.com/tasks")
+  )
+
+      .then((res) => res.json())
+      .then((data) => {
+        setTodos(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("API error:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  // Add todo to MongoDB
+  const addTodo = async () => {
+    if (!task.trim()) return;
+
+    try {
+      const res = await fetch(API + "/tasks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: task }),
+      });
+
+      const newTodo = await res.json();
+      setTodos([...todos, newTodo]);
+      setTask("");
+    } catch (err) {
+      console.error("Failed to add:", err);
+    }
   };
 
-  // Delete Todo
-  const deleteTodo = (index) => {
-    const newTodos = todos.filter((_, i) => i !== index);
-    setTodos(newTodos);
-  };
+  // Delete todo from MongoDB
+  const deleteTodo = async (id) => {
+    try {
+      await fetch(API + "/tasks/" + id, {
+        method: "DELETE",
+      });
 
-  // Toggle Complete
-  const toggleTodo = (index) => {
-    const newTodos = [...todos];
-    newTodos[index].completed = !newTodos[index].completed;
-    setTodos(newTodos);
+      setTodos(todos.filter((todo) => todo._id !== id));
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
   };
 
   return (
@@ -31,39 +64,33 @@ function TodoApp() {
 
       <div style={styles.inputBox}>
         <input
-          type="text"
-          placeholder="Enter task..."
+          style={styles.input}
           value={task}
           onChange={(e) => setTask(e.target.value)}
-          style={styles.input}
+          placeholder="Enter task..."
         />
-        <button onClick={addTodo} style={styles.addBtn}>
+        <button style={styles.addBtn} onClick={addTodo}>
           Add
         </button>
       </div>
 
-      <ul style={styles.list}>
-        {todos.map((todo, index) => (
-          <li key={index} style={styles.item}>
-            <span
-              onClick={() => toggleTodo(index)}
-              style={{
-                ...styles.text,
-                textDecoration: todo.completed ? "line-through" : "none",
-                color: todo.completed ? "gray" : "black",
-              }}
-            >
-              {todo.text}
-            </span>
-            <button
-              onClick={() => deleteTodo(index)}
-              style={styles.deleteBtn}
-            >
-              ❌
-            </button>
-          </li>
-        ))}
-      </ul>
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <ul style={styles.list}>
+          {todos.map((todo) => (
+            <li key={todo._id} style={styles.item}>
+              {todo.name}
+              <button
+                style={styles.deleteBtn}
+                onClick={() => deleteTodo(todo._id)}
+              >
+                ❌
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -80,7 +107,6 @@ const styles = {
   },
   title: {
     textAlign: "center",
-    marginBottom: "15px",
   },
   inputBox: {
     display: "flex",
@@ -108,21 +134,16 @@ const styles = {
   item: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
     background: "white",
     padding: "8px",
     marginBottom: "8px",
     borderRadius: "5px",
-  },
-  text: {
-    cursor: "pointer",
   },
   deleteBtn: {
     background: "red",
     color: "white",
     border: "none",
     borderRadius: "5px",
-    padding: "5px 8px",
     cursor: "pointer",
   },
 };
